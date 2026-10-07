@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.Looper
 import android.util.Log
 import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,12 +25,15 @@ import org.futo.inputmethod.engine.IMEInterface
 import org.futo.inputmethod.engine.IMEMessage
 import org.futo.inputmethod.engine.NonExpandableSuggestionBar
 import org.futo.inputmethod.event.Event
+import org.futo.inputmethod.event.HardwareKeyMap
+import org.futo.inputmethod.event.HardwareKeyboardEventDecoder
 import org.futo.inputmethod.event.InputTransaction
 import org.futo.inputmethod.keyboard.KeyboardSwitcher
 import org.futo.inputmethod.latin.BuildConfig
 import org.futo.inputmethod.latin.Dictionary
 import org.futo.inputmethod.latin.DictionaryFacilitator
 import org.futo.inputmethod.latin.DictionaryFacilitatorProvider
+import org.futo.inputmethod.latin.LastComposedWord
 import org.futo.inputmethod.latin.NgramContext
 import org.futo.inputmethod.latin.RichInputMethodManager
 import org.futo.inputmethod.latin.Subtypes.switchToNextLanguage
@@ -396,6 +400,40 @@ class GeneralIME(val helper: IMEHelper) : IMEInterface, WordLearner, SuggestionS
     }
 
     override fun onEvent(event: Event) = onEventInternal(event)
+
+    // Set when the layout's combiners need hardware keys, e.g. to compose Hangul
+    private var hardwareKeyMap: HardwareKeyMap? = null
+    private var hardwareKeyDecoder: HardwareKeyboardEventDecoder? = null
+    private val consumedHardwareKeys = mutableSetOf<Int>()
+
+    override fun onHardwareKeyDown(keyEvent: KeyEvent): Boolean {
+        val keyMap = hardwareKeyMap ?: return false
+        val decoder = hardwareKeyDecoder ?: return false
+        if (keyEvent.isCtrlPressed || keyEvent.isAltPressed || keyEvent.isMetaPressed) return false
+        // Shift and other modifiers alone must not finish the composition
+        if (KeyEvent.isModifierKey(keyEvent.keyCode)) return false
+
+        // Other keys keep their native behavior (e.g. Enter to send) unless a word is being
+        // composed, in which case they must go through the combiner too
+        val isMapped = keyMap.charFor(keyEvent.keyCode, keyEvent.isShiftPressed) != null
+        if (!isMapped && !inputLogic.mWordComposer.isComposingWord) return false
+
+        val event = decoder.decodeHardwareKey(keyEvent)
+        if (!event.isHandled) {
+            // e.g. arrow keys: finish the composition before the app moves the cursor
+            inputLogic.mConnection.beginBatchEdit()
+            inputLogic.commitTyped(settings.current, LastComposedWord.NOT_A_SEPARATOR)
+            inputLogic.mConnection.endBatchEdit()
+            return false
+        }
+
+        onEvent(event)
+        consumedHardwareKeys.add(keyEvent.keyCode)
+        return true
+    }
+
+    override fun onHardwareKeyUp(keyEvent: KeyEvent): Boolean =
+        consumedHardwareKeys.remove(keyEvent.keyCode)
 
     override fun onGetSuggestedWords(
         suggestedWords: SuggestedWords,
@@ -769,6 +807,9 @@ class GeneralIME(val helper: IMEHelper) : IMEInterface, WordLearner, SuggestionS
 
     override fun onLayoutUpdated(layout: KeyboardLayoutSetV2) {
         inputLogic.mWordComposer.setCombiners(layout.mainLayout.combiners)
+
+        hardwareKeyMap = layout.mainLayout.combiners.firstNotNullOfOrNull { it.hardwareKeyMap }
+        hardwareKeyDecoder = hardwareKeyMap?.let { HardwareKeyboardEventDecoder(-1, it) }
 
         dictionaryFacilitator.updateSwipeLayoutAndDictsIfNeeded(
             Settings.getInstance().current,
