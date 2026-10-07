@@ -1,5 +1,54 @@
 # FUTO Keyboard
 
+> [!NOTE]
+> **About the `0.1.30-nesswit` branch**
+>
+> This branch is a personal build of FUTO Keyboard for my own devices. It is
+> not an official FUTO release, and FUTO does not support it. It starts from
+> the upstream `0.1.30` tag and adds these changes:
+>
+> | Change | Source |
+> |---|---|
+> | Configurable flick gesture sensitivity (Long-Press Keys & Spacebar settings) | `feat/flick-gesture-sensitivity` (one commit), cherry-picked |
+> | Hangul input from hardware keyboards, through the same Korean combiner as the on-screen keyboard, and language switch keys: the Hangul (한/영) key, Shift+Space, and Right Alt, each with a setting, plus an option to disable AltGr when Right Alt switches the language | `feat/hardware-keyboard-hangul` (one commit), cherry-picked |
+> | Suggestion toolbar while a hardware keyboard hides the touch keyboard | [PR #2138](https://github.com/futo-org/android-keyboard/pull/2138) (`pr-2138`, two commits), merged as a branch |
+> | "Guest 한/영" toolbar action: sends raw Shift+Space key events (with Linux scan codes) to the Linux VM display of the Android Terminal app (AVF), so that the guest input method switches between Korean and English | `feat/avf-shift-space` (one commit), cherry-picked |
+> | Option to send the hardware 한/영 key, Right Alt and Shift+Space unhandled to the AVF Linux display, so that the guest input method gets them | `feat/avf-hardware-key-passthrough` (last commit), cherry-picked |
+> | Option to send the touch keyboard's keys to the AVF Linux display as hardware key events with Linux scan codes, so that shortcuts such as Ctrl+W work there; `!code/keyevent_*` layout keys, sticky Ctrl/Alt/Super keys, and cursor and navigation pad keys (`!code/key_cursor_pad`, `!code/key_nav_pad`) | `feat/avf-soft-key-passthrough` (last commit), cherry-picked |
+>
+> The feature branches are based on upstream `master`, so that they can be
+> proposed upstream. Each one holds a single commit, except as noted. The history of this
+> branch, from oldest to newest:
+>
+> 1. The upstream `0.1.30` tag.
+> 2. The `feat/flick-gesture-sensitivity` commit, cherry-picked.
+> 3. The `feat/hardware-keyboard-hangul` commit, cherry-picked.
+> 4. A merge of `pr-2138`, fetched from `pull/2138/head` of the upstream
+>    repository. In `strings-uix.xml` and `Typing.kt`, both sides add
+>    settings after "Hide when USB keyboard is detected". The merge keeps all
+>    of them: the toolbar toggle first, then the language switch key toggles.
+> 5. The `feat/avf-shift-space` commit, cherry-picked.
+> 6. The last commit of `feat/avf-hardware-key-passthrough`, cherry-picked.
+>    That branch is `feat/hardware-keyboard-hangul` with the
+>    `feat/avf-shift-space` commit cherry-picked, plus this commit, because
+>    the option needs the code of both.
+> 7. The last commit of `feat/avf-soft-key-passthrough`, cherry-picked. That
+>    branch is `feat/avf-hardware-key-passthrough` plus this commit, because
+>    the option reuses its AVF check and setting.
+> 8. This note.
+>
+> When a feature branch changes, rebuild this branch in the same order from
+> `0.1.30` instead of adding fix-up commits.
+>
+> Release builds of this branch use `VERSION_NAME=0.1.30-nesswit` and
+> `VERSION_CODE=11751` (the `git rev-list --first-parent --count` value of
+> `0.1.30`). Without a personal `keystore.properties`, the build signs them with the
+> public debug key, so they cannot update an official FUTO Keyboard install.
+> The custom layouts used for testing are in
+> [rishubil/nesswit-futo-layout](https://github.com/rishubil/nesswit-futo-layout).
+>
+> The rest of this README is the upstream README.
+
 The goal is to make a good modern keyboard that stays offline and doesn't spy on you. This keyboard is a fork of [LatinIME, The Android Open-Source Keyboard](https://android.googlesource.com/platform/packages/inputmethods/LatinIME), with significant changes made to it.
 
 Check out the [FUTO Keyboard website](https://keyboard.futo.tech/) for downloads and more information.
