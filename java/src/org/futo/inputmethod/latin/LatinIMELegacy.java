@@ -895,13 +895,24 @@ public class LatinIMELegacy implements KeyboardActionListener,
         return newDecoder;
     }
 
+    // A tap of Right Alt switches the language instead of toggling the symbols layout when enabled
+    private boolean shouldDetectEmojiAltKey(final KeyEvent keyEvent) {
+        return keyEvent.getKeyCode() != KeyEvent.KEYCODE_ALT_RIGHT
+                || !mImeManager.isRightAltLanguageSwitchEnabled();
+    }
+
     // Hooks for hardware keyboard
     public boolean onKeyDown(final int keyCode, final KeyEvent keyEvent) {
         if (mEmojiAltPhysicalKeyDetector == null) {
             mEmojiAltPhysicalKeyDetector = new EmojiAltPhysicalKeyDetector(
                     mInputMethodService.getApplicationContext().getResources());
         }
-        mEmojiAltPhysicalKeyDetector.onKeyDown(keyEvent);
+        if (shouldDetectEmojiAltKey(keyEvent)) {
+            mEmojiAltPhysicalKeyDetector.onKeyDown(keyEvent);
+        }
+        if (mImeManager.onHardwareKeyDown(keyEvent)) {
+            return true;
+        }
         if (!ProductionFlags.IS_HARDWARE_KEYBOARD_SUPPORTED) {
             return false;
         }
@@ -923,7 +934,12 @@ public class LatinIMELegacy implements KeyboardActionListener,
             mEmojiAltPhysicalKeyDetector = new EmojiAltPhysicalKeyDetector(
                     mInputMethodService.getApplicationContext().getResources());
         }
-        mEmojiAltPhysicalKeyDetector.onKeyUp(keyEvent);
+        if (shouldDetectEmojiAltKey(keyEvent)) {
+            mEmojiAltPhysicalKeyDetector.onKeyUp(keyEvent);
+        }
+        if (mImeManager.onHardwareKeyUp(keyEvent)) {
+            return true;
+        }
         if (!ProductionFlags.IS_HARDWARE_KEYBOARD_SUPPORTED) {
             return false;
         }
