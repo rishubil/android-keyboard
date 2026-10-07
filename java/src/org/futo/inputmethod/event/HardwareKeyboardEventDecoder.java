@@ -21,6 +21,8 @@ import android.view.KeyEvent;
 
 import org.futo.inputmethod.latin.common.Constants;
 
+import javax.annotation.Nullable;
+
 /**
  * A hardware event decoder for a hardware qwerty-ish keyboard.
  *
@@ -30,9 +32,18 @@ import org.futo.inputmethod.latin.common.Constants;
  */
 public class HardwareKeyboardEventDecoder implements HardwareEventDecoder {
     final int mDeviceId;
+    @Nullable final HardwareKeyMap mKeyMap;
 
     public HardwareKeyboardEventDecoder(final int deviceId) {
+        this(deviceId, null);
+    }
+
+    /**
+     * @param keyMap if not null, maps keys to characters before the system key character map
+     */
+    public HardwareKeyboardEventDecoder(final int deviceId, @Nullable final HardwareKeyMap keyMap) {
         mDeviceId = deviceId;
+        mKeyMap = keyMap;
         // TODO: get the layout for this hardware keyboard
     }
 
@@ -53,6 +64,13 @@ public class HardwareKeyboardEventDecoder implements HardwareEventDecoder {
         }
         if (keyEvent.isPrintingKey() || KeyEvent.KEYCODE_SPACE == keyCode
                 || KeyEvent.KEYCODE_ENTER == keyCode) {
+            if (null != mKeyMap) {
+                final Character mappedChar = mKeyMap.charFor(keyCode, keyEvent.isShiftPressed());
+                if (null != mappedChar) {
+                    return Event.createHardwareKeypressEvent(mappedChar, keyCode,
+                            null /* next */, isKeyRepeat);
+                }
+            }
             if (0 != (codePointAndFlags & KeyCharacterMap.COMBINING_ACCENT)) {
                 // A dead key.
                 return Event.createDeadEvent(
