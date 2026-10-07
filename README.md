@@ -1,5 +1,49 @@
 # FUTO Keyboard
 
+> [!NOTE]
+> **About the `0.1.30-nesswit` branch**
+>
+> This branch is a personal build of FUTO Keyboard for my own devices. It is
+> not an official FUTO release, and FUTO does not support it. It starts from
+> the upstream `0.1.30` tag and adds these changes:
+>
+> | Change | Source |
+> |---|---|
+> | Configurable flick gesture sensitivity (Long-Press Keys & Spacebar settings) | `feat/flick-gesture-sensitivity` (one commit), cherry-picked |
+> | Hangul input from hardware keyboards, through the same Korean combiner as the on-screen keyboard, and language switch keys: the Hangul (한/영) key, Shift+Space, and Right Alt, each with a setting (Korean Input Settings), plus an option to disable AltGr when Right Alt switches the language | `feat/hardware-keyboard-hangul` (one commit), cherry-picked |
+> | Suggestion toolbar while a hardware keyboard hides the touch keyboard | [PR #2138](https://github.com/futo-org/android-keyboard/pull/2138) (`pr-2138`, two commits), merged as a branch |
+> | Option to commit completed Hangul syllables in Termux (Korean Input Settings), so that Termux does not split or lose jamo and shows each syllable as soon as the next one starts | `feat/termux-hangul-syllable-commit` (one commit), cherry-picked |
+>
+> The feature branches are based on upstream `master`, so that they can be
+> proposed upstream. Each one holds a single commit, except as noted. The history of this
+> branch, from oldest to newest:
+>
+> 1. The upstream `0.1.30` tag.
+> 2. The `feat/flick-gesture-sensitivity` commit, cherry-picked.
+> 3. The `feat/hardware-keyboard-hangul` commit, cherry-picked.
+> 4. A merge of `pr-2138`, fetched from `pull/2138/head` of the upstream
+>    repository. In `strings-uix.xml`, both sides add strings after "Hide
+>    when USB keyboard is detected". The merge keeps all of them: the
+>    toolbar strings first, then the language switch key strings.
+> 5. The `feat/termux-hangul-syllable-commit` commit, cherry-picked. Both
+>    Hangul branches add the "Korean Input Settings" page
+>    (`KoreanIMESettings.kt` and its `strings-uix.xml` title). The
+>    cherry-pick keeps one page: the hardware keyboard toggles first, then
+>    the Termux toggle.
+> 6. This note.
+>
+> When a feature branch changes, rebuild this branch in the same order from
+> `0.1.30` instead of adding fix-up commits.
+>
+> Release builds of this branch use `VERSION_NAME=0.1.30-nesswit` and
+> `VERSION_CODE=11751` (the `git rev-list --first-parent --count` value of
+> `0.1.30`). Without a personal `keystore.properties`, the build signs them with the
+> public debug key, so they cannot update an official FUTO Keyboard install.
+> The custom layouts used for testing are in
+> [rishubil/nesswit-futo-layout](https://github.com/rishubil/nesswit-futo-layout).
+>
+> The rest of this README is the upstream README.
+
 The goal is to make a good modern keyboard that stays offline and doesn't spy on you. This keyboard is a fork of [LatinIME, The Android Open-Source Keyboard](https://android.googlesource.com/platform/packages/inputmethods/LatinIME), with significant changes made to it.
 
 Check out the [FUTO Keyboard website](https://keyboard.futo.tech/) for downloads and more information.
