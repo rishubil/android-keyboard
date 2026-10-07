@@ -1,5 +1,6 @@
 package org.futo.inputmethod.engine
 
+import android.view.KeyEvent
 import androidx.compose.runtime.MutableState
 import org.futo.inputmethod.annotations.UsedForTesting
 import org.futo.inputmethod.event.Event
@@ -43,6 +44,18 @@ interface IMEInterface {
 
     // Input
     fun onEvent(event: Event)
+
+    /**
+     * Called when a key on a hardware keyboard is pressed.
+     * @return true if the key has been consumed, false to let the app handle it.
+     */
+    fun onHardwareKeyDown(keyEvent: KeyEvent): Boolean = false
+
+    /**
+     * Called when a key on a hardware keyboard is released.
+     * @return true if the key has been consumed, false to let the app handle it.
+     */
+    fun onHardwareKeyUp(keyEvent: KeyEvent): Boolean = false
 
 
     /**

@@ -83,6 +83,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
 import org.futo.inputmethod.accessibility.AccessibilityUtils
+import org.futo.inputmethod.engine.HardwareKeyboardDisableAltGr
+import org.futo.inputmethod.engine.HardwareKeyboardHangulKeySwitchesLanguage
+import org.futo.inputmethod.engine.HardwareKeyboardRightAltSwitchesLanguage
+import org.futo.inputmethod.engine.HardwareKeyboardShiftSpaceSwitchesLanguage
 import org.futo.inputmethod.engine.IMESettingsMenu
 import org.futo.inputmethod.latin.HideKeyboardWhenHardKeyboardConnected
 import org.futo.inputmethod.latin.R
@@ -880,6 +884,27 @@ val KeyboardSettingsMenu = UserSettingsMenu(
         userSettingToggleDataStore(
             title = R.string.keyboard_settings_hide_when_hardware_keyboard_is_connected,
             setting = HideKeyboardWhenHardKeyboardConnected
+        ),
+        userSettingToggleDataStore(
+            title = R.string.keyboard_settings_hardware_hangul_key_switches_language,
+            subtitle = R.string.keyboard_settings_hardware_hangul_key_switches_language_subtitle,
+            setting = HardwareKeyboardHangulKeySwitchesLanguage
+        ),
+        userSettingToggleDataStore(
+            title = R.string.keyboard_settings_hardware_shift_space_switches_language,
+            subtitle = R.string.keyboard_settings_hardware_shift_space_switches_language_subtitle,
+            setting = HardwareKeyboardShiftSpaceSwitchesLanguage
+        ),
+        userSettingToggleDataStore(
+            title = R.string.keyboard_settings_hardware_right_alt_switches_language,
+            subtitle = R.string.keyboard_settings_hardware_right_alt_switches_language_subtitle,
+            setting = HardwareKeyboardRightAltSwitchesLanguage
+        ),
+        userSettingToggleDataStore(
+            title = R.string.keyboard_settings_hardware_disable_altgr,
+            subtitle = R.string.keyboard_settings_hardware_disable_altgr_subtitle,
+            setting = HardwareKeyboardDisableAltGr,
+            disabled = { !useDataStore(HardwareKeyboardRightAltSwitchesLanguage).value }
         )
     )
 )

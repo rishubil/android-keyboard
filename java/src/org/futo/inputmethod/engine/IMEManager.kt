@@ -1,9 +1,11 @@
 package org.futo.inputmethod.engine
 
+import android.view.KeyEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.lifecycle.lifecycleScope
@@ -19,6 +21,7 @@ import org.futo.inputmethod.engine.general.GeneralIME
 import org.futo.inputmethod.engine.general.ChineseIME
 import org.futo.inputmethod.engine.general.JapaneseIME
 import org.futo.inputmethod.latin.LatinIME
+import org.futo.inputmethod.latin.Subtypes
 import org.futo.inputmethod.latin.settings.Settings
 import org.futo.inputmethod.latin.settings.SettingsValues
 import org.futo.inputmethod.latin.uix.ActionInputTransaction
@@ -44,6 +47,55 @@ private val ImesEverUsedWithDictionaryPersonalization = SettingsKey(
     stringSetPreferencesKey("ImesEverUsedWithDictionaryPersonalization"),
     emptySet()
 )
+
+val HardwareKeyboardHangulKeySwitchesLanguage = SettingsKey(
+    booleanPreferencesKey("hardwareKeyboardHangulKeySwitchesLanguage"),
+    true
+)
+
+val HardwareKeyboardShiftSpaceSwitchesLanguage = SettingsKey(
+    booleanPreferencesKey("hardwareKeyboardShiftSpaceSwitchesLanguage"),
+    true
+)
+
+// Off by default: Right Alt is AltGr on many layouts, and a tap of it toggles the symbols layout
+val HardwareKeyboardRightAltSwitchesLanguage = SettingsKey(
+    booleanPreferencesKey("hardwareKeyboardRightAltSwitchesLanguage"),
+    false
+)
+
+// Makes Right Alt only a language switch key, like the 한/영 key. Needs HardwareKeyboardRightAltSwitchesLanguage
+val HardwareKeyboardDisableAltGr = SettingsKey(
+    booleanPreferencesKey("hardwareKeyboardDisableAltGr"),
+    false
+)
+
+/** Returns the key event as if Right Alt were not pressed. Left Alt stays pressed. */
+fun withoutRightAlt(keyEvent: KeyEvent): KeyEvent {
+    var metaState = keyEvent.metaState and KeyEvent.META_ALT_RIGHT_ON.inv()
+    if(metaState and KeyEvent.META_ALT_LEFT_ON == 0) {
+        metaState = metaState and KeyEvent.META_ALT_ON.inv()
+    }
+    return KeyEvent(
+        keyEvent.downTime, keyEvent.eventTime, keyEvent.action, keyEvent.keyCode,
+        keyEvent.repeatCount, metaState, keyEvent.deviceId, keyEvent.scanCode,
+        keyEvent.flags, keyEvent.source
+    )
+}
+
+/**
+ * Keys of a hardware keyboard that switch to the next language: the Korean 한/영 key (HID Lang1,
+ * which Generic.kl maps to KANA) and Shift+Space. The system handles LANGUAGE_SWITCH and Ctrl+Space
+ * itself, as they switch Android input method subtypes.
+ */
+fun isHardwareLanguageSwitchKey(
+    keyEvent: KeyEvent,
+    hangulKeyEnabled: Boolean,
+    shiftSpaceEnabled: Boolean
+): Boolean =
+    (hangulKeyEnabled && keyEvent.keyCode == KeyEvent.KEYCODE_KANA)
+            || (shiftSpaceEnabled && keyEvent.keyCode == KeyEvent.KEYCODE_SPACE
+                && keyEvent.hasModifiers(KeyEvent.META_SHIFT_ON))
 
 enum class IMEKind(val factory: (IMEHelper) -> IMEInterface) {
     General({ GeneralIME(it) }),
@@ -141,6 +193,84 @@ class IMEManager(
         ime.onFinishInput()
 
         currentActionInputTransactionIME?.let { endInputTransaction(it) }
+    }
+
+    /** When enabled, a tap of Right Alt no longer toggles the symbols layout (EmojiAltPhysicalKeyDetector) */
+    fun isRightAltLanguageSwitchEnabled(): Boolean =
+        service.getSetting(HardwareKeyboardRightAltSwitchesLanguage)
+
+    // Right Alt is AltGr on many layouts, so only a tap of it switches the language
+    private val rightAltTapDetector = HardwareKeyTapDetector(KeyEvent.KEYCODE_ALT_RIGHT)
+
+    private fun isAltGrDisabled(): Boolean =
+        isRightAltLanguageSwitchEnabled() && service.getSetting(HardwareKeyboardDisableAltGr)
+
+    // The app gets a key without Right Alt from the input connection instead of the original key
+    private fun sendToApp(keyEvent: KeyEvent): Boolean =
+        service.currentInputConnection?.sendKeyEvent(keyEvent) ?: false
+
+    fun onHardwareKeyDown(keyEvent: KeyEvent): Boolean {
+        if(!inInput) return false
+
+        if(isAltGrDisabled()) {
+            if(keyEvent.keyCode == KeyEvent.KEYCODE_ALT_RIGHT) {
+                if(keyEvent.repeatCount == 0) Subtypes.switchToNextLanguage(service, 1)
+                return true
+            }
+            if(keyEvent.metaState and KeyEvent.META_ALT_RIGHT_ON != 0) {
+                val event = withoutRightAlt(keyEvent)
+                return handleHardwareKeyDown(event) || sendToApp(event)
+            }
+        }
+
+        return handleHardwareKeyDown(keyEvent)
+    }
+
+    fun onHardwareKeyUp(keyEvent: KeyEvent): Boolean {
+        if(!inInput) return false
+
+        if(isAltGrDisabled()) {
+            if(keyEvent.keyCode == KeyEvent.KEYCODE_ALT_RIGHT) return true
+            if(keyEvent.metaState and KeyEvent.META_ALT_RIGHT_ON != 0) {
+                val event = withoutRightAlt(keyEvent)
+                return handleHardwareKeyUp(event) || sendToApp(event)
+            }
+        }
+
+        return handleHardwareKeyUp(keyEvent)
+    }
+
+    private var consumedLanguageSwitchKeyCode: Int? = null
+    private fun handleHardwareKeyDown(keyEvent: KeyEvent): Boolean {
+        rightAltTapDetector.onKeyDown(keyEvent)
+
+        if(isHardwareLanguageSwitchKey(
+                keyEvent,
+                hangulKeyEnabled = service.getSetting(HardwareKeyboardHangulKeySwitchesLanguage),
+                shiftSpaceEnabled = service.getSetting(HardwareKeyboardShiftSpaceSwitchesLanguage)
+            )) {
+            // Holding the key switches only once. With a single language the key goes to the app
+            if(keyEvent.repeatCount > 0) return consumedLanguageSwitchKeyCode == keyEvent.keyCode
+            val switched = Subtypes.switchToNextLanguage(service, 1) != null
+            consumedLanguageSwitchKeyCode = if(switched) keyEvent.keyCode else null
+            return switched
+        }
+
+        return getActiveIME(settings.current).onHardwareKeyDown(keyEvent)
+    }
+
+    private fun handleHardwareKeyUp(keyEvent: KeyEvent): Boolean {
+        // Shift may already be released, so match the key code only
+        if(consumedLanguageSwitchKeyCode == keyEvent.keyCode) {
+            consumedLanguageSwitchKeyCode = null
+            return true
+        }
+
+        if(rightAltTapDetector.onKeyUp(keyEvent) && isRightAltLanguageSwitchEnabled()) {
+            Subtypes.switchToNextLanguage(service, 1)
+        }
+
+        return getActiveIME(settings.current).onHardwareKeyUp(keyEvent)
     }
 
     fun clearUserHistoryDictionaries() {

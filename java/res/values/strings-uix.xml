@@ -505,6 +505,14 @@
     <string name="keyboard_settings_number_row_dont_use_script_digits">Always use Western numerals</string>
 
     <string name="keyboard_settings_hide_when_hardware_keyboard_is_connected">Hide when USB keyboard is detected</string>
+    <string name="keyboard_settings_hardware_hangul_key_switches_language">Switch language with the Hangul key</string>
+    <string name="keyboard_settings_hardware_hangul_key_switches_language_subtitle">On a hardware keyboard, the Hangul (한/영) key switches to the next language</string>
+    <string name="keyboard_settings_hardware_shift_space_switches_language">Switch language with Shift+Space</string>
+    <string name="keyboard_settings_hardware_shift_space_switches_language_subtitle">On a hardware keyboard, Shift+Space switches to the next language</string>
+    <string name="keyboard_settings_hardware_right_alt_switches_language">Switch language with Right Alt</string>
+    <string name="keyboard_settings_hardware_right_alt_switches_language_subtitle">On a hardware keyboard, pressing and releasing Right Alt alone switches to the next language, for keyboards that use it as the Hangul (한/영) key. Right Alt combinations (AltGr) keep working.</string>
+    <string name="keyboard_settings_hardware_disable_altgr">Disable AltGr combinations</string>
+    <string name="keyboard_settings_hardware_disable_altgr_subtitle">Right Alt only switches the language, like the Hangul key: it switches when pressed, and keys pressed while holding it type their usual characters. Requires \"Switch language with Right Alt\"</string>
 
     <!-- misc titles -->
     <string name="settings_keyboard_typing_title">Keyboard &amp; Typing</string>
