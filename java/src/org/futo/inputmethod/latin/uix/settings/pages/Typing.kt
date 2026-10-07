@@ -90,6 +90,7 @@ import org.futo.inputmethod.engine.HardwareKeyboardShiftSpaceSwitchesLanguage
 import org.futo.inputmethod.engine.IMESettingsMenu
 import org.futo.inputmethod.latin.HideKeyboardWhenHardKeyboardConnected
 import org.futo.inputmethod.latin.R
+import org.futo.inputmethod.latin.ShowToolbarWhenHardKeyboardConnected
 import org.futo.inputmethod.latin.settings.LongPressKey
 import org.futo.inputmethod.latin.settings.LongPressKeyLayoutSetting
 import org.futo.inputmethod.latin.settings.Settings
@@ -884,6 +885,12 @@ val KeyboardSettingsMenu = UserSettingsMenu(
         userSettingToggleDataStore(
             title = R.string.keyboard_settings_hide_when_hardware_keyboard_is_connected,
             setting = HideKeyboardWhenHardKeyboardConnected
+        ),
+        userSettingToggleDataStore(
+            title = R.string.keyboard_settings_show_toolbar_when_hardware_keyboard_is_connected,
+            subtitle = R.string.keyboard_settings_show_toolbar_when_hardware_keyboard_is_connected_subtitle,
+            setting = ShowToolbarWhenHardKeyboardConnected,
+            disabled = { !useDataStore(HideKeyboardWhenHardKeyboardConnected).value }
         ),
         userSettingToggleDataStore(
             title = R.string.keyboard_settings_hardware_hangul_key_switches_language,
