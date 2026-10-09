@@ -26,6 +26,7 @@ import org.futo.inputmethod.latin.settings.Settings
 import org.futo.inputmethod.latin.settings.SettingsValues
 import org.futo.inputmethod.latin.uix.ActionInputTransaction
 import org.futo.inputmethod.latin.uix.SettingsKey
+import org.futo.inputmethod.latin.uix.actions.isAvfDisplay
 import org.futo.inputmethod.latin.uix.actions.throwIfDebug
 import org.futo.inputmethod.latin.uix.dataStore
 import org.futo.inputmethod.latin.uix.deferSetSetting
@@ -69,6 +70,22 @@ val HardwareKeyboardDisableAltGr = SettingsKey(
     booleanPreferencesKey("hardwareKeyboardDisableAltGr"),
     false
 )
+
+// In the Linux VM display of the Android Terminal app (AVF), the guest input method gets the
+// language switch keys instead of this keyboard
+val HardwareKeyboardAvfKeyPassthrough = SettingsKey(
+    booleanPreferencesKey("hardwareKeyboardAvfKeyPassthrough"),
+    false
+)
+
+/**
+ * Keys of a hardware keyboard that the guest input method of the AVF Linux display (e.g. fcitx5)
+ * can use to switch between Korean and English: the 한/영 key, Right Alt and Shift+Space. The display
+ * forwards key events to the guest by their scan codes, so the keys must reach it unchanged.
+ */
+fun isAvfGuestLanguageSwitchKey(keyEvent: KeyEvent): Boolean =
+    keyEvent.keyCode == KeyEvent.KEYCODE_KANA || keyEvent.keyCode == KeyEvent.KEYCODE_ALT_RIGHT
+            || (keyEvent.keyCode == KeyEvent.KEYCODE_SPACE && keyEvent.hasModifiers(KeyEvent.META_SHIFT_ON))
 
 /** Returns the key event as if Right Alt were not pressed. Left Alt stays pressed. */
 fun withoutRightAlt(keyEvent: KeyEvent): KeyEvent {
@@ -209,8 +226,20 @@ class IMEManager(
     private fun sendToApp(keyEvent: KeyEvent): Boolean =
         service.currentInputConnection?.sendKeyEvent(keyEvent) ?: false
 
+    /** When active, Right Alt, the 한/영 key and Shift+Space go to the AVF display unhandled */
+    fun isAvfKeyPassthroughActive(): Boolean =
+        service.getSetting(HardwareKeyboardAvfKeyPassthrough)
+                && service.currentInputEditorInfo?.let { isAvfDisplay(it) } == true
+
     fun onHardwareKeyDown(keyEvent: KeyEvent): Boolean {
         if(!inInput) return false
+
+        if(isAvfKeyPassthroughActive()) {
+            // Returning false lets the system deliver the original event, with its scan code.
+            // Right Alt combinations also stay as they are, so that the guest sees AltGr.
+            if(isAvfGuestLanguageSwitchKey(keyEvent)) return false
+            return handleHardwareKeyDown(keyEvent)
+        }
 
         if(isAltGrDisabled()) {
             if(keyEvent.keyCode == KeyEvent.KEYCODE_ALT_RIGHT) {
@@ -228,6 +257,11 @@ class IMEManager(
 
     fun onHardwareKeyUp(keyEvent: KeyEvent): Boolean {
         if(!inInput) return false
+
+        if(isAvfKeyPassthroughActive()) {
+            if(isAvfGuestLanguageSwitchKey(keyEvent)) return false
+            return handleHardwareKeyUp(keyEvent)
+        }
 
         if(isAltGrDisabled()) {
             if(keyEvent.keyCode == KeyEvent.KEYCODE_ALT_RIGHT) return true

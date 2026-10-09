@@ -83,6 +83,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
 import org.futo.inputmethod.accessibility.AccessibilityUtils
+import org.futo.inputmethod.engine.HardwareKeyboardAvfKeyPassthrough
 import org.futo.inputmethod.engine.HardwareKeyboardDisableAltGr
 import org.futo.inputmethod.engine.HardwareKeyboardHangulKeySwitchesLanguage
 import org.futo.inputmethod.engine.HardwareKeyboardRightAltSwitchesLanguage
@@ -873,6 +874,11 @@ val KeyboardSettingsMenu = UserSettingsMenu(
             subtitle = R.string.keyboard_settings_hardware_disable_altgr_subtitle,
             setting = HardwareKeyboardDisableAltGr,
             disabled = { !useDataStore(HardwareKeyboardRightAltSwitchesLanguage).value }
+        ),
+        userSettingToggleDataStore(
+            title = R.string.keyboard_settings_hardware_avf_key_passthrough,
+            subtitle = R.string.keyboard_settings_hardware_avf_key_passthrough_subtitle,
+            setting = HardwareKeyboardAvfKeyPassthrough
         )
     )
 )

@@ -19,7 +19,7 @@ private const val SCAN_CODE_SPACE = 57
 
 // The Android Terminal app shows the Linux VM display with inputType TYPE_NULL. The native
 // terminal of the same app uses a text inputType, and must not receive this shortcut.
-private fun isAvfDisplay(editorInfo: EditorInfo): Boolean =
+fun isAvfDisplay(editorInfo: EditorInfo): Boolean =
     editorInfo.packageName == AVF_TERMINAL_PACKAGE && editorInfo.inputType == InputType.TYPE_NULL
 
 /**
