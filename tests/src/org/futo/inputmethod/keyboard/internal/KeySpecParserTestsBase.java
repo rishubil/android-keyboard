@@ -262,6 +262,12 @@ abstract class KeySpecParserTestsBase extends AndroidTestCase {
                 ".com", ".com ", ICON_UNDEFINED, CODE_OUTPUT_TEXT);
     }
 
+    // An unknown code gives a disabled key, so that a layout for a newer version still loads
+    public void testNonExistingCode() {
+        assertParser("Non existing code", "abc|" + CODE_NON_EXISTING,
+                "abc", null, ICON_UNDEFINED, CODE_UNSPECIFIED);
+    }
+
     public void testFormatError() {
         assertParserError("Empty label with outputText", "|a",
                 null, "a", ICON_UNDEFINED, CODE_UNSPECIFIED);
@@ -275,8 +281,6 @@ abstract class KeySpecParserTestsBase extends AndroidTestCase {
                 null, null, mSettingsIconId, CODE_UNSPECIFIED);
         assertParserError("Non existing icon", ICON_NON_EXISTING + "|abc",
                 null, "abc", ICON_UNDEFINED, CODE_OUTPUT_TEXT);
-        assertParserError("Non existing code", "abc|" + CODE_NON_EXISTING,
-                "abc", null, ICON_UNDEFINED, CODE_UNSPECIFIED);
         assertParserError("Third bar at end", "a|b|",
                 "a", null, ICON_UNDEFINED, CODE_UNSPECIFIED);
         assertParserError("Multiple bar", "a|b|c",

@@ -6,6 +6,7 @@ import android.view.inputmethod.EditorInfo
 import androidx.annotation.VisibleForTesting
 import org.futo.inputmethod.engine.DefaultStateHint
 import org.futo.inputmethod.engine.StateHint
+import org.futo.inputmethod.engine.StickyModifiers
 import org.futo.inputmethod.event.Event
 import org.futo.inputmethod.keyboard.Key
 import org.futo.inputmethod.keyboard.Keyboard
@@ -578,7 +579,12 @@ class KeyboardState(private val switchActions: SwitchActions) {
             }
         }
 
-        if (Constants.isLetterCode(code)) {
+        // A key event key (e.g. Esc or Del of an Fn layer) ends a manual shift or an alt page like a
+        // letter does. A modifier key (e.g. Ctrl) does not, because it applies to the next key.
+        // The end of a drag on a cursor or navigation pad key counts as such a key too.
+        if (Constants.isLetterCode(code)
+                || (Constants.isKeyEventCode(code) && !StickyModifiers.isModifierCode(code))
+                || Constants.isPadCode(code)) {
             updateAlphabetShiftState(autoCapsFlags)
         }
     }

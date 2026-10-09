@@ -17,16 +17,25 @@
 package org.futo.inputmethod.keyboard.internal;
 
 import static org.futo.inputmethod.latin.common.Constants.CODE_ACTION_0;
+import static org.futo.inputmethod.latin.common.Constants.CODE_ACTION_MAX;
+import static org.futo.inputmethod.latin.common.Constants.CODE_KEYEVENT_0;
 import static org.futo.inputmethod.latin.common.Constants.CODE_UNSPECIFIED;
+
+import android.util.Log;
+import android.view.KeyEvent;
 
 import org.futo.inputmethod.latin.common.Constants;
 import org.futo.inputmethod.latin.uix.actions.ActionRegistry;
+import org.futo.inputmethod.latin.uix.actions.RegistryKt;
 
 import java.util.HashMap;
+import java.util.Locale;
 
 public final class KeyboardCodesSet {
+    private static final String TAG = "KeyboardCodesSet";
     public static final String PREFIX_CODE = "!code/";
     public static final String ACTION_CODE_PREFIX = "action_";
+    public static final String KEYEVENT_CODE_PREFIX = "keyevent_";
 
     private static final HashMap<String, Integer> sNameToIdMap = new HashMap<>();
 
@@ -34,14 +43,39 @@ public final class KeyboardCodesSet {
         // This utility class is not publicly instantiable.
     }
 
+    // An unknown code (e.g. from a layout for a newer version) gives a disabled key, so that it
+    // does not break the whole layout
+    private static int unknownCode(final String name) {
+        Log.w(TAG, "Unknown key code: " + name);
+        return CODE_UNSPECIFIED;
+    }
+
     public static int getCode(final String name) {
         if(name.startsWith(ACTION_CODE_PREFIX)) {
-            int id = CODE_ACTION_0 + ActionRegistry.INSTANCE.parseAction(name);
-            if(id >= CODE_UNSPECIFIED) throw new RuntimeException("Action ID too high!");
-            return id;
+            final int actionId;
+            try {
+                actionId = ActionRegistry.INSTANCE.parseAction(name);
+            } catch (IllegalArgumentException e) {
+                return unknownCode(name);
+            }
+            // A numeric ID must name an existing action, or a press would trigger no action
+            if(actionId < 0 || actionId >= RegistryKt.getAllActions().size()
+                    || CODE_ACTION_0 + actionId > CODE_ACTION_MAX) {
+                return unknownCode(name);
+            }
+            return CODE_ACTION_0 + actionId;
+        }
+        if(name.startsWith(KEYEVENT_CODE_PREFIX)) {
+            // e.g. keyevent_escape is KeyEvent.KEYCODE_ESCAPE
+            final String keyName = name.substring(KEYEVENT_CODE_PREFIX.length());
+            final int keyCode = keyName.isEmpty() ? KeyEvent.KEYCODE_UNKNOWN
+                    : KeyEvent.keyCodeFromString("KEYCODE_" + keyName.toUpperCase(Locale.ROOT));
+            final int code = CODE_KEYEVENT_0 + keyCode;
+            if (!Constants.isKeyEventCode(code)) return unknownCode(name);
+            return code;
         }
         Integer id = sNameToIdMap.get(name);
-        if (id == null) throw new RuntimeException("Unknown key code: " + name);
+        if (id == null) return unknownCode(name);
         return DEFAULT[id];
     }
 
@@ -70,6 +104,8 @@ public final class KeyboardCodesSet {
         "key_to_alpha_1_layout",
         "key_to_alpha_2_layout",
         "key_to_alpha_3_layout",
+        "key_cursor_pad",
+        "key_nav_pad",
         "key_unspecified",
     };
 
@@ -98,6 +134,8 @@ public final class KeyboardCodesSet {
         Constants.CODE_TO_ALPHA_1_LAYOUT,
         Constants.CODE_TO_ALPHA_2_LAYOUT,
         Constants.CODE_TO_ALPHA_3_LAYOUT,
+        Constants.CODE_CURSOR_PAD,
+        Constants.CODE_NAV_PAD,
         Constants.CODE_UNSPECIFIED,
     };
 

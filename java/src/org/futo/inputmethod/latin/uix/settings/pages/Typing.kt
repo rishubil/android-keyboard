@@ -89,6 +89,7 @@ import org.futo.inputmethod.engine.HardwareKeyboardHangulKeySwitchesLanguage
 import org.futo.inputmethod.engine.HardwareKeyboardRightAltSwitchesLanguage
 import org.futo.inputmethod.engine.HardwareKeyboardShiftSpaceSwitchesLanguage
 import org.futo.inputmethod.engine.IMESettingsMenu
+import org.futo.inputmethod.engine.SoftKeyboardAvfKeyPassthrough
 import org.futo.inputmethod.latin.HideKeyboardWhenHardKeyboardConnected
 import org.futo.inputmethod.latin.R
 import org.futo.inputmethod.latin.ShowToolbarWhenHardKeyboardConnected
@@ -918,6 +919,11 @@ val KeyboardSettingsMenu = UserSettingsMenu(
             title = R.string.keyboard_settings_hardware_avf_key_passthrough,
             subtitle = R.string.keyboard_settings_hardware_avf_key_passthrough_subtitle,
             setting = HardwareKeyboardAvfKeyPassthrough
+        ),
+        userSettingToggleDataStore(
+            title = R.string.keyboard_settings_soft_avf_key_passthrough,
+            subtitle = R.string.keyboard_settings_soft_avf_key_passthrough_subtitle,
+            setting = SoftKeyboardAvfKeyPassthrough
         )
     )
 )

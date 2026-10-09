@@ -257,11 +257,29 @@ public final class Constants {
     // Code value representing the code is not specified.
     public static final int CODE_UNSPECIFIED = -24;
 
+    // Keys that send arrow keys (cursor pad) or Home/End/Page Up/Page Down (navigation pad) while
+    // they are dragged. A tap sends nothing.
+    public static final int CODE_CURSOR_PAD = -100;
+    public static final int CODE_NAV_PAD = -101;
+
+    public static boolean isPadCode(final int code) {
+        return code == CODE_CURSOR_PAD || code == CODE_NAV_PAD;
+    }
+
     public static final int CODE_ACTION_0 = -1050;
     public static final int CODE_ACTION_MAX = CODE_ACTION_0 + 100;
 
     public static final int CODE_ALT_ACTION_0 = -2050;
     public static final int CODE_ALT_ACTION_MAX = CODE_ALT_ACTION_0 + 100;
+
+    // Android key events from !code/keyevent_{name}: CODE_KEYEVENT_0 + KeyEvent.KEYCODE_{NAME}.
+    // KEYCODE_UNKNOWN (0) is not a valid key event code.
+    public static final int CODE_KEYEVENT_0 = -4000;
+    public static final int CODE_KEYEVENT_MAX = CODE_KEYEVENT_0 + 999;
+
+    public static boolean isKeyEventCode(final int code) {
+        return code > CODE_KEYEVENT_0 && code <= CODE_KEYEVENT_MAX;
+    }
 
     public static boolean isLetterCode(final int code) {
         return code >= CODE_SPACE;

@@ -230,6 +230,7 @@ public final class KeyboardSwitcher implements SwitchActions {
         final MainKeyboardView keyboardView = mKeyboardView;
         final Keyboard oldKeyboard = keyboardView.getKeyboard();
         final Keyboard newKeyboard = mKeyboardLayoutSet.getKeyboard(element);
+        mLatinIMELegacy.updateModifierKeys(newKeyboard);
         keyboardView.setKeyboard(newKeyboard);
         SwipeDecoderDictionary.updateKeyboard(newKeyboard);
         keyboardView.updateStateHint(mStateHint);

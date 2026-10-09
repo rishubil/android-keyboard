@@ -68,7 +68,8 @@ public final class MoreKeySpec {
         final int codeInSpec = KeySpecParser.getCode(moreKeySpec);
         final int code = needsToUpperCase ? StringUtils.toTitleCaseOfKeyCode(codeInSpec, locale)
                 : codeInSpec;
-        if (code == Constants.CODE_UNSPECIFIED) {
+        // An explicit code that is unspecified (e.g. an unknown !code/ name) stays a disabled key
+        if (code == Constants.CODE_UNSPECIFIED && codeInSpec != Constants.CODE_UNSPECIFIED) {
             // Some letter, for example German Eszett (U+00DF: "ß"), has multiple characters
             // upper case representation ("SS").
             mCode = Constants.CODE_OUTPUT_TEXT;

@@ -102,6 +102,14 @@ public interface KeyboardActionListener {
     public boolean onCustomRequest(int requestCode);
 
     public void onMovePointer(int steps);
+    // A spacebar swipe moves the cursor on both axes while this returns true. Positive steps of
+    // onMovePointerVertical move down.
+    public boolean isVerticalPointerMoveEnabled();
+    public void onMovePointerVertical(int steps);
+    // A cursor or navigation pad key (Constants.isPadCode) was dragged by steps on one axis, and
+    // the drag ended after at least one step. A tap of a pad key only gives onCodeInput.
+    public void onPadSteps(int code, int stepsX, int stepsY);
+    public void onPadGestureEnd(int code);
     public void onMoveDeletePointer(int steps);
     public void onUpWithDeletePointerActive();
     public void onUpWithPointerActive();
@@ -137,6 +145,14 @@ public interface KeyboardActionListener {
         public boolean onCustomRequest(int requestCode) { return false; }
         @Override
         public void onMovePointer(int steps) {}
+        @Override
+        public boolean isVerticalPointerMoveEnabled() { return false; }
+        @Override
+        public void onMovePointerVertical(int steps) {}
+        @Override
+        public void onPadSteps(int code, int stepsX, int stepsY) {}
+        @Override
+        public void onPadGestureEnd(int code) {}
         @Override
         public void onMoveDeletePointer(int steps) {}
         @Override
