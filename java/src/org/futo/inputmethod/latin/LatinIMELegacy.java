@@ -895,10 +895,12 @@ public class LatinIMELegacy implements KeyboardActionListener,
         return newDecoder;
     }
 
-    // A tap of Right Alt switches the language instead of toggling the symbols layout when enabled
+    // A tap of Right Alt switches the language instead of toggling the symbols layout when enabled,
+    // and goes to the AVF display unhandled when that is active
     private boolean shouldDetectEmojiAltKey(final KeyEvent keyEvent) {
         return keyEvent.getKeyCode() != KeyEvent.KEYCODE_ALT_RIGHT
-                || !mImeManager.isRightAltLanguageSwitchEnabled();
+                || !(mImeManager.isRightAltLanguageSwitchEnabled()
+                        || mImeManager.isAvfKeyPassthroughActive());
     }
 
     // Hooks for hardware keyboard
