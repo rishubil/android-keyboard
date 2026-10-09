@@ -74,6 +74,10 @@ interface KeyboardManagerForAction {
     fun sendCodePointEvent(codePoint: Int)
     fun sendKeyEvent(keyCode: Int, metaState: Int)
 
+    // Sends raw Shift+Space key events to the AVF Linux VM display. Returns false if the
+    // current editor is not that display.
+    fun sendAvfShiftSpace(): Boolean
+
     fun isShifted(): Boolean
 
     fun cursorLeft(steps: Int, stepOverWords: Boolean, select: Boolean)
