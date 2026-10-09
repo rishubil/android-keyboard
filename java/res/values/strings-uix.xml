@@ -10,6 +10,8 @@
     <string name="action_redo_title">Redo</string>
     <string name="action_text_editor_title">Text Editor</string>
     <string name="action_debug_title">Debug Info</string>
+    <string name="action_avf_shift_space_title">Guest 한/영</string>
+    <string name="action_avf_shift_space_unavailable">Guest 한/영 works only in the Linux terminal display</string>
     <string name="action_more_actions_title">All Actions</string>
     <string name="action_bug_viewer_title">Bug Viewer</string>
     <!-- These move the text cursor up, down, left, right -->

@@ -129,6 +129,7 @@ import org.futo.inputmethod.latin.uix.actions.KeyboardModeAction
 import org.futo.inputmethod.latin.uix.actions.PersistentEmojiState
 import org.futo.inputmethod.latin.uix.actions.keyCode
 import org.futo.inputmethod.latin.uix.actions.keyCodeAlt
+import org.futo.inputmethod.latin.uix.actions.sendAvfShiftSpaceKeys
 import org.futo.inputmethod.latin.uix.resizing.KeyboardResizers
 import org.futo.inputmethod.latin.uix.settings.DataStoreCacheProvider
 import org.futo.inputmethod.latin.uix.settings.pages.ActionBarDisplayedSetting
@@ -416,6 +417,12 @@ class UixActionKeyboardManager(val uixManager: UixManager, val latinIME: LatinIM
         ).onEvent(event)
         //latinIME.inputLogic.sendDownUpKeyEvent(keyCode, metaState)
     }
+
+    override fun sendAvfShiftSpace(): Boolean = sendAvfShiftSpaceKeys(
+        latinIME.isInputConnectionOverridden,
+        latinIME.getBaseInputEditorInfo(),
+        latinIME.getBaseInputConnection()
+    )
 
     override fun isShifted(): Boolean = latinIME.latinIMELegacy.mKeyboardSwitcher.mState.shifted
 
