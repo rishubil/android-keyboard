@@ -34,6 +34,7 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.os.Debug;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.text.InputType;
 import android.util.Log;
 import android.util.PrintWriterPrinter;
@@ -44,10 +45,12 @@ import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup.LayoutParams;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodSubtype;
 
 import androidx.annotation.NonNull;
@@ -60,10 +63,16 @@ import org.futo.inputmethod.compat.ViewOutlineProviderCompatUtils.InsetsUpdater;
 import org.futo.inputmethod.engine.ExpandableSuggestionBarConfiguration;
 import org.futo.inputmethod.engine.IMEInterface;
 import org.futo.inputmethod.engine.IMEManager;
+import org.futo.inputmethod.engine.ModifierState;
+import org.futo.inputmethod.engine.SoftKeyPassthroughKt;
+import org.futo.inputmethod.engine.SoftKeyRoute;
+import org.futo.inputmethod.engine.StickyModifiers;
+import org.futo.inputmethod.engine.SwipeSteps;
 import org.futo.inputmethod.event.Event;
 import org.futo.inputmethod.event.HardwareEventDecoder;
 import org.futo.inputmethod.event.HardwareKeyboardEventDecoder;
 import org.futo.inputmethod.event.InputTransaction;
+import org.futo.inputmethod.keyboard.Key;
 import org.futo.inputmethod.keyboard.Keyboard;
 import org.futo.inputmethod.keyboard.KeyboardActionListener;
 import org.futo.inputmethod.keyboard.KeyboardSwitcher;
@@ -90,6 +99,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -136,6 +146,10 @@ public class LatinIMELegacy implements KeyboardActionListener,
     public RichInputMethodManager mRichImm;
     public final KeyboardSwitcher mKeyboardSwitcher;
     private EmojiAltPhysicalKeyDetector mEmojiAltPhysicalKeyDetector;
+
+    // Latched (sticky) modifier keys from !code/keyevent_ctrl_left etc.
+    private final StickyModifiers mStickyModifiers =
+            new StickyModifiers(ViewConfiguration.getDoubleTapTimeout());
 
     // Used for re-initialize keyboard layout after onConfigurationChange.
     @Nullable private Context mDisplayContext;
@@ -316,6 +330,8 @@ public class LatinIMELegacy implements KeyboardActionListener,
     }
 
     public void onStartInput(final EditorInfo editorInfo, final boolean restarting) {
+        // No modifier state survives into another editor
+        if (!restarting) resetStickyModifiers();
         onStartInputInternal(editorInfo, restarting);
     }
 
@@ -329,6 +345,7 @@ public class LatinIMELegacy implements KeyboardActionListener,
     }
 
     public void onFinishInput() {
+        resetStickyModifiers();
         onFinishInputInternal();
     }
 
@@ -454,6 +471,7 @@ public class LatinIMELegacy implements KeyboardActionListener,
     }
 
     public void onWindowHidden() {
+        resetStickyModifiers();
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
         if (mainKeyboardView != null) {
             mainKeyboardView.closing();
@@ -627,9 +645,57 @@ public class LatinIMELegacy implements KeyboardActionListener,
 
     @Override
     public void onMovePointer(int steps) {
+        final InputConnection avfConnection = mImeManager.getAvfSoftKeyConnection();
+        if (avfConnection != null) {
+            SoftKeyPassthroughKt.sendAvfCursorKeys(avfConnection, steps, false,
+                    isManuallyShifted(), mStickyModifiers);
+            return;
+        }
         mImeManager.getActiveIME(
                 mSettings.getCurrent()
         ).onMovePointer(steps, false, null);
+    }
+
+    // The AVF display gets arrow keys, so a spacebar swipe moves its cursor in all directions
+    @Override
+    public boolean isVerticalPointerMoveEnabled() {
+        return mImeManager.getAvfSoftKeyConnection() != null;
+    }
+
+    @Override
+    public void onMovePointerVertical(int steps) {
+        final InputConnection avfConnection = mImeManager.getAvfSoftKeyConnection();
+        if (avfConnection != null) {
+            SoftKeyPassthroughKt.sendAvfCursorKeys(avfConnection, steps, true,
+                    isManuallyShifted(), mStickyModifiers);
+        }
+    }
+
+    @Override
+    public void onPadSteps(int code, int stepsX, int stepsY) {
+        final SwipeSteps steps = new SwipeSteps(stepsX, stepsY);
+        final InputConnection avfConnection = mImeManager.getAvfSoftKeyConnection();
+        if (avfConnection != null) {
+            SoftKeyPassthroughKt.sendAvfPadSteps(avfConnection, code, steps,
+                    isManuallyShifted(), mStickyModifiers);
+            return;
+        }
+        for (final SoftKeyRoute.KeyEvent keyEvent : SoftKeyPassthroughKt.padKeyEvents(code, steps,
+                isManuallyShifted(), mStickyModifiers)) {
+            getActiveIME().onEvent(Event.createDownUpKeyEvent(
+                    keyEvent.getKeyCode(), keyEvent.getMetaState()));
+        }
+    }
+
+    // The drag of a pad key ended after at least one step: it consumes the latched modifiers, and
+    // ends a manual shift or an alt page like a key event key
+    @Override
+    public void onPadGestureEnd(int code) {
+        mStickyModifiers.consume();
+        onStickyModifiersChanged();
+        final Event event = Event.createSoftwareKeypressEvent(Event.NOT_A_CODE_POINT, code,
+                Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false);
+        mKeyboardSwitcher.onEvent(event, getCurrentAutoCapsState());
     }
 
     @Override
@@ -648,6 +714,12 @@ public class LatinIMELegacy implements KeyboardActionListener,
 
     @Override
     public void onUpWithPointerActive() {
+        if (mImeManager.getAvfSoftKeyConnection() != null) {
+            // The latched modifiers applied to every step of the swipe, which consumes them
+            mStickyModifiers.consume();
+            onStickyModifiersChanged();
+            return;
+        }
         mImeManager.getActiveIME(
                 mSettings.getCurrent()
         ).onUpWithPointerActive();
@@ -734,8 +806,90 @@ public class LatinIMELegacy implements KeyboardActionListener,
                         mKeyboardSwitcher.getKeyboardShiftMode(),
                         mKeyboardSwitcher.getCurrentKeyboardScriptId(), mHandler);
         updateStateAfterInputTransaction(completeInputTransaction);*/
-        getActiveIME().onEvent(event);
+        // A tap of a cursor or navigation pad key sends nothing and changes no state. Its drag is
+        // handled in onPadSteps and onPadGestureEnd.
+        if (Constants.isPadCode(event.mKeyCode)) return;
+        if (!routeSoftKeyEvent(event)) {
+            getActiveIME().onEvent(event);
+        }
         mKeyboardSwitcher.onEvent(event, getCurrentAutoCapsState());
+    }
+
+    private boolean isManuallyShifted() {
+        final int shiftMode = mKeyboardSwitcher.getKeyboardShiftMode();
+        return shiftMode == WordComposer.CAPS_MODE_MANUAL_SHIFTED
+                || shiftMode == WordComposer.CAPS_MODE_MANUAL_SHIFT_LOCKED;
+    }
+
+    // Handles the sticky modifiers and the key event keys (!code/keyevent_*). While the soft keys
+    // go to the AVF display, sends the key as raw key events with Linux scan codes instead of
+    // text. Returns false if the active IME must handle the event as usual.
+    private boolean routeSoftKeyEvent(@Nonnull final Event event) {
+        if (event.getEventType() != Event.EVENT_TYPE_INPUT_KEYPRESS) return false;
+        final int code = event.mCodePoint != Event.NOT_A_CODE_POINT
+                ? event.mCodePoint : event.mKeyCode;
+        final long now = SystemClock.uptimeMillis();
+
+        final boolean handled;
+        final InputConnection avfConnection = mImeManager.getAvfSoftKeyConnection();
+        if (avfConnection != null) {
+            handled = SoftKeyPassthroughKt.handleAvfSoftKey(avfConnection, code,
+                    isManuallyShifted(), mStickyModifiers, now);
+        } else {
+            final SoftKeyRoute route = SoftKeyPassthroughKt.routeSoftKey(code,
+                    isManuallyShifted(), mStickyModifiers, now);
+            if (route instanceof SoftKeyRoute.KeyEvent) {
+                final SoftKeyRoute.KeyEvent keyEvent = (SoftKeyRoute.KeyEvent) route;
+                getActiveIME().onEvent(Event.createDownUpKeyEvent(
+                        keyEvent.getKeyCode(), keyEvent.getMetaState()));
+            }
+            handled = route != SoftKeyRoute.Normal.INSTANCE;
+        }
+
+        if (handled) onStickyModifiersChanged();
+        return handled;
+    }
+
+    // Sends text to the AVF display as raw key events when the soft keys go there
+    private boolean sendTextToAvfDisplay(@Nonnull final String text) {
+        final InputConnection avfConnection = mImeManager.getAvfSoftKeyConnection();
+        if (avfConnection == null) return false;
+        SoftKeyPassthroughKt.handleAvfSoftText(avfConnection, text, mStickyModifiers);
+        onStickyModifiersChanged();
+        return true;
+    }
+
+    // Turns all modifiers off, and releases the ones that are down on the AVF display
+    private void resetStickyModifiers() {
+        final InputConnection avfConnection = mImeManager.getAvfSoftKeyConnection();
+        SoftKeyPassthroughKt.resetModifiers(avfConnection, mStickyModifiers);
+        onStickyModifiersChanged();
+    }
+
+    // Shows the state of the modifier keys of the keyboard. Returns the keys that changed.
+    @Nonnull
+    public List<Key> updateModifierKeys(@Nullable final Keyboard keyboard) {
+        final ArrayList<Key> changed = new ArrayList<>();
+        if (keyboard == null) return changed;
+        for (final Key key : keyboard.getSortedKeys()) {
+            final int code = key.getCode();
+            if (!StickyModifiers.isModifierCode(code)) continue;
+            final ModifierState state = mStickyModifiers.stateOf(code - Constants.CODE_KEYEVENT_0);
+            if (key.getModifierState() != state) {
+                key.setModifierState(state);
+                changed.add(key);
+            }
+        }
+        return changed;
+    }
+
+    private void onStickyModifiersChanged() {
+        final List<Key> changed = updateModifierKeys(mKeyboardSwitcher.getKeyboard());
+        final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
+        if (mainKeyboardView == null) return;
+        for (final Key key : changed) {
+            mainKeyboardView.invalidateKey(key);
+        }
     }
 
     // A helper method to split the code point and the key code. Ultimately, they should not be
@@ -760,13 +914,17 @@ public class LatinIMELegacy implements KeyboardActionListener,
     @Override
     public void onTextInput(final String rawText) {
         final Event event = Event.createSoftwareTextEvent(rawText, Constants.CODE_OUTPUT_TEXT);
-        getActiveIME().onEvent(event);
+        if (!sendTextToAvfDisplay(rawText)) {
+            getActiveIME().onEvent(event);
+        }
         mKeyboardSwitcher.onEvent(event, getCurrentAutoCapsState());
     }
 
     public void onTextInputWithSpace(final String rawText) {
         final Event event = Event.createSoftwareTextEvent(rawText, Constants.CODE_OUTPUT_TEXT_WITH_SPACES);
-        getActiveIME().onEvent(event);
+        if (!sendTextToAvfDisplay(rawText)) {
+            getActiveIME().onEvent(event);
+        }
         mKeyboardSwitcher.onEvent(event, getCurrentAutoCapsState());
     }
 
@@ -776,21 +934,26 @@ public class LatinIMELegacy implements KeyboardActionListener,
 
     @Override
     public void onStartBatchInput() {
+        // Swipe typing does not apply to the AVF display, which gets raw key events only
+        if (mImeManager.getAvfSoftKeyConnection() != null) return;
         getActiveIME().onStartBatchInput();
     }
 
     @Override
     public void onUpdateBatchInput(final InputPointers batchPointers) {
+        if (mImeManager.getAvfSoftKeyConnection() != null) return;
         getActiveIME().onUpdateBatchInput(batchPointers);
     }
 
     @Override
     public void onEndBatchInput(final InputPointers batchPointers) {
+        if (mImeManager.getAvfSoftKeyConnection() != null) return;
         getActiveIME().onEndBatchInput(batchPointers);
     }
 
     @Override
     public void onCancelBatchInput() {
+        if (mImeManager.getAvfSoftKeyConnection() != null) return;
         getActiveIME().onCancelBatchInput();
     }
 
@@ -872,6 +1035,10 @@ public class LatinIMELegacy implements KeyboardActionListener,
     public void onPressKey(final int primaryCode, final int repeatCount,
             final boolean isSinglePointer) {
         mKeyboardSwitcher.onPressKey(primaryCode, isSinglePointer, getCurrentAutoCapsState());
+        // A held modifier applies to the keys that are pressed until it is released
+        if (StickyModifiers.isModifierCode(primaryCode)) {
+            mStickyModifiers.press(primaryCode - Constants.CODE_KEYEVENT_0);
+        }
 
         if(primaryCode == Constants.CODE_DELETE && repeatCount > 1) {
             if(!getActiveIME().hasMoreTextToDelete()) return;
@@ -884,6 +1051,14 @@ public class LatinIMELegacy implements KeyboardActionListener,
     @Override
     public void onReleaseKey(final int primaryCode, final boolean withSliding) {
         mKeyboardSwitcher.onReleaseKey(primaryCode, withSliding, getCurrentAutoCapsState());
+        // The code input of a modifier key handles its tap. This ends a hold that had no code input,
+        // e.g. when the key was cancelled.
+        if (StickyModifiers.isModifierCode(primaryCode)) {
+            SoftKeyPassthroughKt.releaseAvfModifier(mImeManager.getAvfSoftKeyConnection(),
+                    mStickyModifiers, primaryCode - Constants.CODE_KEYEVENT_0,
+                    SystemClock.uptimeMillis(), false);
+            onStickyModifiersChanged();
+        }
     }
 
     private HardwareEventDecoder getHardwareKeyEventDecoder(final int deviceId) {

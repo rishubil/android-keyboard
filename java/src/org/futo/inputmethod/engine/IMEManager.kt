@@ -1,6 +1,7 @@
 package org.futo.inputmethod.engine
 
 import android.view.KeyEvent
+import android.view.inputmethod.InputConnection
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,13 @@ val HardwareKeyboardDisableAltGr = SettingsKey(
 // language switch keys instead of this keyboard
 val HardwareKeyboardAvfKeyPassthrough = SettingsKey(
     booleanPreferencesKey("hardwareKeyboardAvfKeyPassthrough"),
+    false
+)
+
+// In the Linux VM display of the Android Terminal app (AVF), the soft keys go to the guest as raw
+// key events with Linux scan codes
+val SoftKeyboardAvfKeyPassthrough = SettingsKey(
+    booleanPreferencesKey("softKeyboardAvfKeyPassthrough"),
     false
 )
 
@@ -230,6 +238,17 @@ class IMEManager(
     fun isAvfKeyPassthroughActive(): Boolean =
         service.getSetting(HardwareKeyboardAvfKeyPassthrough)
                 && service.currentInputEditorInfo?.let { isAvfDisplay(it) } == true
+
+    /**
+     * Returns the base InputConnection when the soft keys go to the AVF display as raw key events,
+     * or null otherwise. An editor that this keyboard overrides is never the AVF display.
+     */
+    fun getAvfSoftKeyConnection(): InputConnection? {
+        if(!service.getSetting(SoftKeyboardAvfKeyPassthrough) || service.isInputConnectionOverridden) return null
+        val editorInfo = service.getBaseInputEditorInfo() ?: return null
+        if(!isAvfDisplay(editorInfo)) return null
+        return service.getBaseInputConnection()
+    }
 
     fun onHardwareKeyDown(keyEvent: KeyEvent): Boolean {
         if(!inInput) return false

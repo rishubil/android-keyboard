@@ -24,6 +24,8 @@ import androidx.collection.MutableIntIntMap
 import androidx.collection.mutableIntIntMapOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import org.futo.inputmethod.engine.ModifierState
+import org.futo.inputmethod.engine.StickyModifiers
 import org.futo.inputmethod.keyboard.internal.KeyDrawParams
 import org.futo.inputmethod.keyboard.internal.KeySpecParser
 import org.futo.inputmethod.keyboard.internal.KeyVisualAttributes
@@ -232,6 +234,19 @@ data class Key(
     /** The current pressed state of this key  */
     private var mPressed = false
 
+    /**
+     * The state of a modifier key event key (!code/keyevent_ctrl_left etc.): a latched one is
+     * drawn like a pressed key, and a locked one like a locked shift key.
+     */
+    var modifierState = ModifierState.Off
+        set(value) {
+            if(field != value) themeCache.clear()
+            field = value
+        }
+
+    private val drawnVisualStyle: KeyVisualStyle
+        get() = if(modifierState == ModifierState.Locked) KeyVisualStyle.StickyOn else visualStyle
+
     /** x position for drawing */
     val drawX: Int = x + horizontalGap / 2 // + visualInsetsLeft
 
@@ -317,7 +332,9 @@ data class Key(
 
     val isShift: Boolean = code == Constants.CODE_SHIFT
 
+    // Modifier key event keys stay pressed while other keys are pressed, so that they can chord
     val isModifier: Boolean = code == Constants.CODE_SHIFT || code == Constants.CODE_SWITCH_ALPHA_SYMBOL
+            || StickyModifiers.isModifierCode(code)
 
     val isRepeatable: Boolean = (actionFlags and KeyConsts.ACTION_FLAGS_IS_REPEATABLE) != 0
 
@@ -356,22 +373,22 @@ data class Key(
     }
 
     fun selectTextColor(provider: DynamicThemeProvider, params: KeyDrawParams): Int {
-        return provider.getKeyStyleDescriptor(visualStyle).let { style ->
+        return provider.getKeyStyleDescriptor(drawnVisualStyle).let { style ->
             when {
-                mPressed -> style.foregroundColorPressed
+                pressed -> style.foregroundColorPressed
                 else -> style.foregroundColor
             }
         }
     }
 
     fun selectBackground(provider: DynamicThemeProvider): Drawable? {
-        return provider.getKeyStyleDescriptor(visualStyle).let { style ->
+        return provider.getKeyStyleDescriptor(drawnVisualStyle).let { style ->
             when {
                 mPressed && hasFlick -> run {
                     style.backgroundDrawableFlicking?.get(mFlickDirection)
                 }
 
-                mPressed -> style.backgroundDrawablePressed
+                pressed -> style.backgroundDrawablePressed
                 else -> style.backgroundDrawable
             }
         }
@@ -406,9 +423,9 @@ data class Key(
     }
 
     fun selectHintTextColor(provider: DynamicThemeProvider, params: KeyDrawParams): Int {
-        return provider.hintColor ?: provider.getKeyStyleDescriptor(visualStyle).let { style ->
+        return provider.hintColor ?: provider.getKeyStyleDescriptor(drawnVisualStyle).let { style ->
             when {
-                mPressed -> style.foregroundColorPressed
+                pressed -> style.foregroundColorPressed
                 else -> style.foregroundColor
             }
         }.let {
@@ -484,7 +501,7 @@ data class Key(
     }
 
     val pressed: Boolean
-        get() = mPressed
+        get() = mPressed || modifierState == ModifierState.Latched
 
     /**
      * Informs the key that it has been pressed, in case it needs to change its appearance or

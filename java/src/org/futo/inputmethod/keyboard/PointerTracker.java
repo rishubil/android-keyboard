@@ -23,7 +23,9 @@ import android.util.Log;
 import android.view.MotionEvent;
 
 import org.futo.inputmethod.engine.IMEInterfaceKt;
+import org.futo.inputmethod.engine.SoftKeyPassthroughKt;
 import org.futo.inputmethod.engine.StateHint;
+import org.futo.inputmethod.engine.SwipeSteps;
 import org.futo.inputmethod.keyboard.internal.BatchInputArbiter;
 import org.futo.inputmethod.keyboard.internal.BatchInputArbiter.BatchInputArbiterListener;
 import org.futo.inputmethod.keyboard.internal.BogusMoveEventDetector;
@@ -151,6 +153,8 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
     private Direction mFlickDirection;
 
     private boolean mIsSlidingCursor;
+    // The pointer started on a cursor or navigation pad key, which sends keys while it is dragged
+    private boolean mIsPadKey;
     private int mStartX;
     private int mStartY;
     private long mStartTime;
@@ -685,7 +689,7 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         // A gesture should start only from a non-modifier key. Note that the gesture detection is
         // disabled when the key is repeating.
         mIsDetectingGesture = (mKeyboard != null) && mKeyboard.mId.isAlphabetKeyboard()
-                && key != null && !key.isModifier();
+                && key != null && !key.isModifier() && !Constants.isPadCode(key.getCode());
         if (mIsDetectingGesture) {
             mBatchInputArbiter.addDownEventPoint(x, y, eventTime,
                     sTypingTimeRecorder.getLastLetterTypingTime(), getActivePointerTrackerCount());
@@ -762,8 +766,9 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
             mStartedOnFastLongPress = key.isFastLongPress();
             mSpacebarLongPressed = false;
 
+            mIsPadKey = Constants.isPadCode(key.getCode());
             mIsSlidingCursor = key.getCode() == Constants.CODE_DELETE || key.getCode() == Constants.CODE_SPACE;
-            mIsFlickingKey = !mIsSlidingCursor && key.getHasFlick();
+            mIsFlickingKey = !mIsSlidingCursor && !mIsPadKey && key.getHasFlick();
             mFlickDirection = key.flickDirection(0, 0);
             mCurrentKey = key;
         }
@@ -970,6 +975,23 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
         final SettingsValues settingsValues = Settings.getInstance().getCurrent();
 
+        // A pad key sends a key for each step on the dominant axis of the drag, and never moves
+        // to another key
+        if (!sInGesture && mIsPadKey && oldKey != null && Constants.isPadCode(oldKey.getCode())) {
+            final SwipeSteps padSteps = SoftKeyPassthroughKt.cursorSwipeSteps(
+                    x - mStartX, y - mStartY, sPointerStep);
+            if (padSteps.getX() != 0 || padSteps.getY() != 0) {
+                sTimerProxy.cancelKeyTimersOf(this);
+                mCursorMoved = true;
+                mStartX += padSteps.getX() * sPointerStep;
+                mStartY += padSteps.getY() * sPointerStep;
+                sListener.onPadSteps(oldKey.getCode(), padSteps.getX(), padSteps.getY());
+            }
+            mLastX = x;
+            mLastY = y;
+            return;
+        }
+
         if (!sInGesture && mIsSlidingCursor && oldKey != null && oldKey.getCode() == Constants.CODE_SPACE) {
             boolean allowedBySettings = (mSpacebarLongPressed && settingsValues.mSpacebarHoldMode == Settings.SPACEBAR_MODE_CURSOR)
                         || (!mSpacebarLongPressed && settingsValues.mSpacebarSwipeMode != Settings.SPACEBAR_MODE_OFF);
@@ -992,6 +1014,19 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
                             sListener.onSwipeLanguageProgress(stepProgress);
                             mProgressReported = true;
                             mCursorMoved = true;
+                        }
+                    } else if (sListener.isVerticalPointerMoveEnabled()) {
+                        // Steps on the dominant axis of the distance from the start
+                        final SwipeSteps swipeSteps = SoftKeyPassthroughKt.cursorSwipeSteps(
+                                x - mStartX, y - mStartY, pointerStep);
+                        if (swipeSteps.getX() != 0) {
+                            mCursorMoved = true;
+                            mStartX += swipeSteps.getX() * pointerStep;
+                            sListener.onMovePointer(swipeSteps.getX());
+                        } else if (swipeSteps.getY() != 0) {
+                            mCursorMoved = true;
+                            mStartY += swipeSteps.getY() * pointerStep;
+                            sListener.onMovePointerVertical(swipeSteps.getY());
                         }
                     } else if(steps != 0) {
                         mCursorMoved = true;
@@ -1144,6 +1179,8 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         }
         if(mCursorMoved && currentKey != null && currentKey.getCode() == Constants.CODE_DELETE) {
             sListener.onUpWithDeletePointerActive();
+        } else if(mCursorMoved && currentKey != null && Constants.isPadCode(currentKey.getCode())) {
+            sListener.onPadGestureEnd(currentKey.getCode());
         } else if(mCursorMoved) {
             sListener.onUpWithPointerActive();
         }
@@ -1342,6 +1379,7 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         if (sInGesture) return;
         if (key == null) return;
         if (!key.isLongPressEnabled()) return;
+        if (Constants.isPadCode(key.getCode())) return;
         // Caveat: Please note that isLongPressEnabled() can be true even if the current key
         // doesn't have its more keys. (e.g. spacebar, globe key) If we are in the dragging finger
         // mode, we will disable long press timer of such key.
@@ -1386,6 +1424,7 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         if (sInGesture) return;
         if (key == null) return;
         if (!key.isRepeatable()) return;
+        if (Constants.isPadCode(key.getCode())) return;
         // Don't start key repeat when we are in the dragging finger mode.
         if (mIsInDraggingFinger) return;
         final int startRepeatCount = 1;
