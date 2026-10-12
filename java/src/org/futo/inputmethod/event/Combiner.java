@@ -45,6 +45,15 @@ public interface Combiner {
     CharSequence getCombiningStateFeedback();
 
     /**
+     * Remove the start of the state feedback that later events can no longer change, and return
+     * it, so that it can be committed while the rest keeps composing.
+     * @return the removed text, or an empty string if this combiner does not support it.
+     */
+    default CharSequence takeCompletedText() {
+        return "";
+    }
+
+    /**
      * Reset the state of this combiner, for example when the cursor was moved.
      */
     void reset();

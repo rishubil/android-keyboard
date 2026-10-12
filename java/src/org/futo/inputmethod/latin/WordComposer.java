@@ -118,6 +118,20 @@ public final class WordComposer {
         }
     }
 
+    /**
+     * Remove the start of the composing word that later input can no longer change, and return
+     * it, so that it can be committed. The rest of the word stays composing.
+     * @return the removed text, which is empty if nothing is complete yet.
+     */
+    public CharSequence takeCompletedText() {
+        final CharSequence completed = mCombinerChain.takeCompletedText();
+        if (completed.length() > 0) {
+            refreshTypedWordCache();
+            mCursorPositionWithinWord = mCodePointSize;
+        }
+        return completed;
+    }
+
     public void setCombiners(@NotNull List<@NotNull CombinerKind> combiners) {
         mCombinerChain = new CombinerChain(combiners,
                 mCombinerChain.getComposingWordWithCombiningFeedback().toString());

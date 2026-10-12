@@ -139,6 +139,28 @@ public class CombinerChain {
     }
 
     /**
+     * Remove the start of the composing word that later events can no longer change, and return
+     * it. The rest of the word stays composing.
+     * @return the removed text, which is empty if no combiner has completed text.
+     */
+    public CharSequence takeCompletedText() {
+        final StringBuilder completed = new StringBuilder();
+        // The feedback lists the combiners in reverse order. A combiner can give away only text
+        // that comes before all remaining feedback, so stop at the first one that keeps some.
+        for (int i = mCombiners.size() - 1; i >= 0; --i) {
+            final Combiner combiner = mCombiners.get(i);
+            completed.append(combiner.takeCompletedText());
+            if (combiner.getCombiningStateFeedback().length() > 0) break;
+        }
+        if (completed.length() == 0) return "";
+        // The already combined text comes before the feedback, so it goes first.
+        completed.insert(0, mCombinedText);
+        mCombinedText.setLength(0);
+        updateStateFeedback();
+        return completed.toString();
+    }
+
+    /**
      * Get the char sequence that should be displayed as the composing word. It may include
      * styling spans.
      */
