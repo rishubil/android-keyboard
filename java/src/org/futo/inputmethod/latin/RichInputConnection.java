@@ -33,6 +33,7 @@ import android.view.inputmethod.InputMethodManager;
 
 import org.futo.inputmethod.compat.InputConnectionCompatUtils;
 import org.futo.inputmethod.engine.InputMethodConnectionProvider;
+import org.futo.inputmethod.engine.KoreanIMESettings;
 import org.futo.inputmethod.latin.common.Constants;
 import org.futo.inputmethod.latin.common.UnicodeSurrogate;
 import org.futo.inputmethod.latin.common.StringUtils;
@@ -132,6 +133,7 @@ public final class RichInputConnection implements PrivateCommandPerformer {
 
     private final InputMethodConnectionProvider mConnectionProvider;
     private InputConnection mIC;
+    private boolean mCommitsCompletedSyllables;
     private int mNestLevel;
 
     /**
@@ -159,7 +161,14 @@ public final class RichInputConnection implements PrivateCommandPerformer {
         }
         if(mIC != null && mIC instanceof InputConnectionInternalComposingWrapper && ((InputConnectionInternalComposingWrapper) mIC).getMTarget() == ic) return;
 
-        ic = InputConnectionInternalComposingWrapper.createWithSettingsFromContext(mConnectionProvider.getContextForSettings(), ic);
+        mCommitsCompletedSyllables = KoreanIMESettings.commitsCompletedSyllables(
+                mConnectionProvider.getContextForSettings(), mConnectionProvider.getCurrentEditorInfo());
+        // The wrapper replaces composing text with deleteSurroundingText and commitText. Termux
+        // turns deleteSurroundingText into a key event that arrives after the next commitText, so
+        // it deletes the new text instead of the old one.
+        if(!mCommitsCompletedSyllables) {
+            ic = InputConnectionInternalComposingWrapper.createWithSettingsFromContext(mConnectionProvider.getContextForSettings(), ic);
+        }
 
         mIC = ic;
     }
@@ -171,6 +180,15 @@ public final class RichInputConnection implements PrivateCommandPerformer {
     public boolean hasSlowInputConnection() {
         return (SystemClock.uptimeMillis() - mLastSlowInputConnectionTime)
                         <= SLOW_INPUTCONNECTION_PERSIST_MS;
+    }
+
+    /**
+     * Whether completed syllables are committed while the rest of the word keeps composing, see
+     * {@link KoreanIMESettings#commitsCompletedSyllables(android.content.Context, android.view.inputmethod.EditorInfo)}.
+     */
+    public boolean commitsCompletedSyllables() {
+        updateConnection();
+        return mCommitsCompletedSyllables;
     }
 
     public void onStartInput() {

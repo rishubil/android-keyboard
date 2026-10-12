@@ -693,6 +693,8 @@
     <string name="japanese_settings_toggle_halfwidth_space_subtitle">Always use half-width space</string>
 
     <string name="korean_settings_title">Korean Input Settings</string>
+    <string name="korean_settings_toggle_termux_commit_syllables">Commit completed syllables in Termux</string>
+    <string name="korean_settings_toggle_termux_commit_syllables_subtitle">In Termux, each Hangul syllable appears as soon as the next one starts, instead of when the word ends. Fixes split or missing jamo in Termux.</string>
 
     <!-- Advanced parameters, these are only really relevant for English -->
     <string name="prediction_settings_transformer_advanced_params">Advanced Parameters</string>

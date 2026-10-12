@@ -100,21 +100,28 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
 
     private val buffer = StringBuilder() // This buffer holds a single word of UNCOMBINED Hangul letters.
 
-    private fun toBlocks(): CharSequence {
+    // Set by toBlocks(): the index in its letters where the current state (initial, vowel, finals)
+    // starts. The letters before it are combined for good, because later letters cannot change them.
+    private var stateStart = 0
+
+    private fun toBlocks(letters: CharSequence = buffer): CharSequence {
         val combined = StringBuilder()
+        stateStart = 0
 
         var initial: Char? = null
         var vowel: Char? = null
         var final: Char? = null
         var final2: Char? = null // State variables
 
-        for (char in buffer) {
+        for ((index, char) in letters.withIndex()) {
             if (initial == null) { // Starting case
                 if (!isInitial(char)) {
                     combined.append(char)
+                    stateStart = index + 1
                     continue
                 } // If the current char is not an initial, just add it to the result
                 initial = char
+                stateStart = index
                 continue
             }
 
@@ -131,9 +138,11 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
                     if (!isInitial(char)) {
                         combined.append(char)
                         initial = null
+                        stateStart = index + 1
                         continue
                     }
                     initial = char
+                    stateStart = index
                     continue
                 } // After the double initial case earlier has been handled,
                 // if current char is not a vowel at this point, we are not getting a valid syllable
@@ -157,9 +166,11 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
                     if (!isInitial(char)) {
                         combined.append(char)
                         initial = null
+                        stateStart = index + 1
                         continue
                     }
                     initial = char
+                    stateStart = index
                     continue
                 } // current char is not a valid final
 
@@ -178,6 +189,7 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
                     initial = final
                     vowel = char
                     final = null
+                    stateStart = index - 1
                     continue
                 } // if char is a vowel, start a new syllable, taking the final from the existing
                 // syllable together with the current char (vowel)
@@ -187,6 +199,7 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
                     initial = char
                     vowel = null
                     final = null
+                    stateStart = index
                     continue
                 } // after the double final case has been handled earlier, if char is an initial,
                 // start a new syllable with it
@@ -202,6 +215,7 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
                 vowel = char
                 final = null
                 final2 = null
+                stateStart = index - 1
                 continue
             } // same vowel case as above, but now take only the second final for a new syllable
             // instead of the first final
@@ -213,6 +227,7 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
                 vowel = null
                 final = null
                 final2 = null
+                stateStart = index
                 continue
             } // if char is an initial, start a new syllable
             combined.append(char) // if it's neither an initial nor a vowel, just output it
@@ -257,6 +272,21 @@ class KoreanCombiner(private val combineInitials: Boolean = false): Combiner {
 
     override fun getCombiningStateFeedback(): CharSequence {
         return toBlocks()
+    }
+
+    override fun takeCompletedText(): CharSequence {
+        val whole = toBlocks().toString()
+        val start = stateStart
+        if (start == 0) return ""
+
+        // Some letters are output ahead of the current state, so check that splitting the
+        // letters at the state start does not change the text
+        val completed = toBlocks(buffer.substring(0, start)).toString()
+        val rest = toBlocks(buffer.substring(start)).toString()
+        if (completed + rest != whole) return ""
+
+        buffer.delete(0, start)
+        return completed
     }
 
     override fun reset() {

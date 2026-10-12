@@ -877,6 +877,15 @@ public final class InputLogic {
             mConnection.commitText(textToCommit, 1);
             inputTransaction.setDidAffectContents();
         }
+        if (mConnection.commitsCompletedSyllables()) {
+            // Commit what later input can no longer change, so that the editor shows it now.
+            // The commit replaces the composing text, and the rest is set again below.
+            final CharSequence completedText = mWordComposer.takeCompletedText();
+            if (!TextUtils.isEmpty(completedText)) {
+                mConnection.commitText(completedText, 1);
+                inputTransaction.setDidAffectContents();
+            }
+        }
         if (mWordComposer.isComposingWord()) {
             setComposingTextInternal(mWordComposer.getTypedWordWithStyles(), 1);
             inputTransaction.setDidAffectContents();
